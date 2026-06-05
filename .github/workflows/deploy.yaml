@@ -75,9 +75,6 @@ jobs:
         run: |
           aws s3 sync react-client/build/ s3://shravani-react-frontend-2026-prod --delete
 
-  # -------------------------------------------------------------
-  # STAGE 3: Server Environment Delivery
-  # -------------------------------------------------------------
   backend:
     name: "Deploy Node Express Rest API"
     needs: terraform
@@ -102,15 +99,12 @@ jobs:
             git fetch --all
             git reset --hard origin/master
             
-            # Setup fresh production dependencies
             npm install --production
 
-            # Write Environment Variables Configurations securely
             echo "DB_HOST=${{ secrets.DB_HOST }}" > .env
             echo "DB_USER=${{ secrets.DB_USER }}" >> .env
             echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
             echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
             echo "PORT=8080" >> .env
             
-            # Hot-reload PM2 lifecycle daemon run processes
-            pm2 restart server.js --name "express-api" || pm2 start server.js --name "express-api"
+            pm2 restart "express-api" || pm2 start server.js --name "express-api"
