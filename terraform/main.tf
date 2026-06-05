@@ -1,5 +1,5 @@
 resource "aws_security_group" "backend_sg" {
-  name        = "express-backend-sg"
+  name        = "express-backend-sg-v2" 
   description = "Allow traffic for Express API and Nginx Frontend"
 
   ingress {
@@ -29,6 +29,10 @@ resource "aws_security_group" "backend_sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_instance" "express_server" {
@@ -37,7 +41,6 @@ resource "aws_instance" "express_server" {
   key_name               = var.key_name
   vpc_security_group_ids = [aws_security_group.backend_sg.id]
 
-  
   user_data = <<-EOF
               #!/bin/bash
               apt-get update -y
@@ -51,6 +54,7 @@ resource "aws_instance" "express_server" {
     Name = "express-backend-production"
   }
 }
+
 
 resource "aws_ecr_repository" "backend" {
   name                 = "express-backend"
@@ -81,6 +85,6 @@ output "backend_ecr_url" {
 }
 
 output "frontend_ecr_url" {
-  value = aws_ecr_repository.frontend.repository_url
+  value       = aws_ecr_repository.frontend.repository_url
   description = "Amazon ECR Private Registry URL for React Frontend"
 }
