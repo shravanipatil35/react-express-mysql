@@ -105,6 +105,8 @@ jobs:
             echo "DB_USER=${{ secrets.DB_USER }}" >> .env
             echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
             echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
+            echo "DB_PORT=28114" >> .env          # Aiven custom port configuration block example
+            echo "DB_DIALECT=mysql" >> .env            
             echo "PORT=8080" >> .env
             
             pm2 restart "express-api" || pm2 start server.js --name "express-api"
