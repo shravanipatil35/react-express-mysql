@@ -65,9 +65,10 @@ jobs:
 
       - name: Build and Push Frontend Image
         run: |
-          # FIX 1: Changed repository tag name from 'react-frontend' to 'express-frontend' to match main.tf exactly
+          # FIX 1: Point the API string to '/api' relatively. This avoids hardcoding different IPs 
+          # and lets Nginx cleanly proxy requests back to your express container directly.
           docker build \
-            --build-arg REACT_APP_API_URL=http://${{ needs.terraform.outputs.ec2_ip }}:8080/api \
+            --build-arg REACT_APP_API_URL=/api \
             -t ${{ steps.login-ecr.outputs.registry }}/express-frontend:latest ./react-client
           docker push ${{ steps.login-ecr.outputs.registry }}/express-frontend:latest
 
@@ -106,7 +107,6 @@ jobs:
             export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
             export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
             
-            # FIX 2: Use the exact AWS login domain matching your registries
             aws ecr get-login-password --region ap-south-1 | sudo docker login --username AWS --password-stdin 435240837203.dkr.ecr.ap-south-1.amazonaws.com
 
             # Write out runtime environmental configurations
