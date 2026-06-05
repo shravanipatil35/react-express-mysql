@@ -4,7 +4,7 @@ const cors = require("cors");
 const app = express();
 
 var corsOptions = {
-  origin: "http://localhost:8081"
+  origin: "http://shravani-react-frontend-2026-prod.s3-website.ap-south-1.amazonaws.com/"
 };
 
 app.use(cors(corsOptions));
