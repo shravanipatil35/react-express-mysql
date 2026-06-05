@@ -13,10 +13,12 @@ services:
       - DB_PORT=${DB_PORT}
       - DB_DIALECT=${DB_DIALECT}
       - PORT=8080
+    restart: always
 
   frontend:
-    image: ${AWS_ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com/react-frontend:latest
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com/express-frontend:latest
     ports:
       - "80:80"
     depends_on:
       - backend
+    restart: always
