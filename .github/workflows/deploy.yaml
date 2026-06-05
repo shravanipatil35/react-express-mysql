@@ -65,10 +65,8 @@ jobs:
 
       - name: Build and Push Frontend Image
         run: |
-          # FIX 1: Point the API string to '/api' relatively. This avoids hardcoding different IPs 
-          # and lets Nginx cleanly proxy requests back to your express container directly.
           docker build \
-            --build-arg REACT_APP_API_URL=/api \
+            --build-arg REACT_APP_API_URL=http://${{ needs.terraform.outputs.ec2_ip }}:8080/api \
             -t ${{ steps.login-ecr.outputs.registry }}/express-frontend:latest ./react-client
           docker push ${{ steps.login-ecr.outputs.registry }}/express-frontend:latest
 
