@@ -1,0 +1,116 @@
+name: Production Continuous Deployment
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+
+  terraform:
+    name: "Provision AWS Infrastructure"
+    runs-on: ubuntu-latest
+    outputs:
+      ec2_ip: ${{ steps.output_ip.outputs.EC2_PUBLIC_IP }}
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform Engine
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Authenticate AWS Session
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Terraform Init & Apply
+        run: |
+          cd terraform
+          terraform init
+          terraform apply -auto-approve
+
+      - name: Capture Instance IP Address
+        id: output_ip
+        run: |
+          cd terraform
+          echo "EC2_PUBLIC_IP=$(terraform output -raw ec2_public_ip)" >> $GITHUB_OUTPUT
+
+
+  frontend:
+    name: "Compile & Sync React Client"
+    needs: terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js Engine
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: react-client/package-lock.json
+
+      - name: Compile Application Production Assets
+        run: |
+          cd react-client
+          npm install
+          # Inject dynamic runtime reference targeting the newly provisioned Express Instance
+          echo "REACT_APP_API_URL=http://${{ needs.terraform.outputs.ec2_ip }}:8080/api" > .env
+          npm run build
+
+      - name: Authenticate AWS Session
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Sync Artifacts to S3 Bucket Hosting
+        run: |
+          aws s3 sync react-client/build/ s3://shravani-react-frontend-2026-prod --delete
+
+  # -------------------------------------------------------------
+  # STAGE 3: Server Environment Delivery
+  # -------------------------------------------------------------
+  backend:
+    name: "Deploy Node Express Rest API"
+    needs: terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Execute Server Delivery Protocol via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ needs.terraform.outputs.ec2_ip }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Ensure workspace clone repository is present
+            if [ ! -d "react-express-mysql" ]; then
+              git clone https://github.com/shravanipatil35/react-express-mysql.git
+            fi
+            
+            cd react-express-mysql/node-express-server
+            git fetch --all
+            git reset --hard origin/master
+            
+            # Setup fresh production dependencies
+            npm install --production
+
+            # Write Environment Variables Configurations securely
+            echo "DB_HOST=${{ secrets.DB_HOST }}" > .env
+            echo "DB_USER=${{ secrets.DB_USER }}" >> .env
+            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+            echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
+            echo "PORT=8080" >> .env
+            
+            # Hot-reload PM2 lifecycle daemon run processes
+            pm2 restart server.js --name "express-api" || pm2 start server.js --name "express-api"
