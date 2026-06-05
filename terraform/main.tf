@@ -1,12 +1,19 @@
 resource "aws_security_group" "backend_sg" {
   name        = "express-backend-sg"
-  description = "Allow traffic for Express API"
+  description = "Allow traffic for Express API and Nginx Frontend"
 
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"] 
+  }
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
@@ -30,12 +37,14 @@ resource "aws_instance" "express_server" {
   key_name               = var.key_name
   vpc_security_group_ids = [aws_security_group.backend_sg.id]
 
+  
   user_data = <<-EOF
               #!/bin/bash
               apt-get update -y
-              curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-              apt-get install -y nodejs git
-              npm install -global pm2
+              apt-get install -y docker.io docker-compose awscli
+              systemctl start docker
+              systemctl enable docker
+              usermod -aG docker ubuntu
               EOF
 
   tags = {
@@ -43,48 +52,22 @@ resource "aws_instance" "express_server" {
   }
 }
 
-resource "aws_s3_bucket" "react_bucket" {
-  bucket        = var.frontend_bucket_name
-  force_destroy = true
-}
+resource "aws_ecr_repository" "backend" {
+  name                 = "express-backend"
+  image_tag_mutability = "MUTABLE"
 
-resource "aws_s3_bucket_public_access_block" "react_bucket_public" {
-  bucket = aws_s3_bucket.react_bucket.id
-
-  block_public_acls       = false
-  block_public_policy     = false
-  ignore_public_acls      = false
-  restrict_public_buckets = false
-}
-
-resource "aws_s3_bucket_website_configuration" "react_website" {
-  bucket = aws_s3_bucket.react_bucket.id
-
-  index_document {
-    suffix = "index.html"
-  }
-
-  error_document {
-    key = "index.html"
+  image_scanning_configuration {
+    scan_on_push = true
   }
 }
 
-resource "aws_s3_bucket_policy" "public_read_policy" {
-  depends_on = [aws_s3_bucket_public_access_block.react_bucket_public]
-  bucket     = aws_s3_bucket.react_bucket.id
+resource "aws_ecr_repository" "frontend" {
+  name                 = "express-frontend"
+  image_tag_mutability = "MUTABLE"
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid       = "PublicReadGetObject"
-        Effect    = "Allow"
-        Principal = "*"
-        Action    = "s3:GetObject"
-        Resource  = "${aws_s3_bucket.react_bucket.arn}/*"
-      }
-    ]
-  })
+  image_scanning_configuration {
+    scan_on_push = true
+  }
 }
 
 output "ec2_public_ip" {
@@ -92,7 +75,12 @@ output "ec2_public_ip" {
   description = "Public IP address of the EC2 instance"
 }
 
-output "s3_website_url" {
-  value       = aws_s3_bucket_website_configuration.react_website.website_endpoint
-  description = "S3 Static Website URL Host"
+output "backend_ecr_url" {
+  value       = aws_ecr_repository.backend.repository_url
+  description = "Amazon ECR Private Registry URL for Express Backend"
+}
+
+output "frontend_ecr_url" {
+  value = aws_ecr_repository.frontend.repository_url
+  description = "Amazon ECR Private Registry URL for React Frontend"
 }
