@@ -65,6 +65,7 @@ jobs:
 
       - name: Build and Push Frontend Image
         run: |
+          # FIX: Revert to using the dynamic EC2 IP address on port 8080 with the explicit /api base route
           docker build \
             --build-arg REACT_APP_API_URL=http://${{ needs.terraform.outputs.ec2_ip }}:8080/api \
             -t ${{ steps.login-ecr.outputs.registry }}/express-frontend:latest ./react-client
